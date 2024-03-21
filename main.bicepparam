@@ -1,0 +1,13 @@
+using './main.bicep'
+
+param addressPrefixes = ['10.100.0.0/16']
+param namingConvention = '{workloadName}-{purpose}-{rtype}-{location}-{sequence}'
+param sequence = 1
+param location = 'eastus'
+param workloadName = 'grouper'
+param purpose = 'test'
+param tags = {
+  'date-created': '2024-03-20'
+  'customer-reference': 'UMB'
+}
+param enableTelemetry = false
