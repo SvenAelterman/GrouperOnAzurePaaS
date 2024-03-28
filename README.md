@@ -1,4 +1,5 @@
 # Grouper On Azure PaaS
+
 Deploys Azure infrastructure required to run InCommon Grouper in Azure using platform services.
 
 ## Architecture
