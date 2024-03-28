@@ -11,3 +11,9 @@ param tags = {
   'customer-reference': 'UMB'
 }
 param enableTelemetry = false
+
+param containerImage = 'umb/grouper:latest'
+param containerRegistryName = 'groupertestacreastus01'
+param coreResourceGroupName = 'grouper-test-core-rg-eastus-01'
+param logAnalyticsWorkspaceId = '/subscriptions/68ec4f79-589c-4b65-9916-5fe7f5d385c2/resourceGroups/grouper-test-core-rg-eastus-01/providers/Microsoft.OperationalInsights/workspaces/grouper-test-log-eastus-01'
+param logAnalyticsWorkspaceName = 'grouper-test-log-eastus-01'

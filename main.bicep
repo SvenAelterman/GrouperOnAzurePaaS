@@ -7,6 +7,7 @@ param namingConvention string = '{workloadName}-{purpose}-{rtype}-{location}-{se
 // From bootstrap.bicep
 param coreResourceGroupName string
 param logAnalyticsWorkspaceName string
+param logAnalyticsWorkspaceId string
 param containerRegistryName string
 param containerImage string
 
@@ -56,6 +57,11 @@ resource appResourceGroup 'Microsoft.Resources/resourceGroups@2023-07-01' = {
 resource log 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   scope: coreResourceGroup
   name: logAnalyticsWorkspaceName
+}
+
+resource cr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  scope: coreResourceGroup
+  name: containerRegistryName
 }
 
 var diagnosticSetting = {
@@ -128,6 +134,7 @@ module databaseDnsZoneModule 'br/public:avm/res/network/private-dns-zone:0.2.4' 
 }
 
 // Deploy a private access PostgreSQL Flexible Server
+// TODO: Define database username/password
 module databaseModule 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.1.3' = {
   scope: dataResourceGroup
   name: take(replace(deploymentNameStructure, '{rtype}', 'database'), 64)
@@ -152,6 +159,27 @@ module databaseModule 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.1.
   }
 }
 
+module uamiModule 'br/public:avm/res/managed-identity/user-assigned-identity:0.2.0' = {
+  scope: coreResourceGroup
+  name: take(replace(deploymentNameStructure, '{rtype}', 'uami'), 64)
+  params: {
+    name: replace(namingStructure, '{rtype}', 'uami')
+
+    enableTelemetry: enableTelemetry
+    tags: tags
+  }
+}
+
+// Assign the AcrPull role on the container registry to the managed identity
+module uamiAcrPullRbacModule 'modules/roleAssignment-cr.bicep' = {
+  scope: coreResourceGroup
+  name: take(replace(deploymentNameStructure, '{rtype}', 'uami-rbac-acr'), 64)
+  params: {
+    crName: containerRegistryName
+    principalId: uamiModule.outputs.principalId
+  }
+}
+
 // Deploy an App Service Plan
 module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
   scope: appResourceGroup
@@ -167,6 +195,7 @@ module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
     }
 
     kind: 'Linux'
+    reserved: true
 
     tags: tags
     //diagnosticSettings: [diagnosticSetting]
@@ -174,21 +203,62 @@ module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
   }
 }
 
-module appServiceModule 'br/public:avm/res/web/site:0.3.1' = {
+module appServiceModule 'modules/avm-local/web/site/main.bicep' = {
   scope: appResourceGroup
-  name: take(replace(deploymentNameStructure, '{rtype}', 'app'), 64)
+  name: take(replace(deploymentNameStructure, '{rtype}', 'app-ui'), 64)
   params: {
-    kind: 'app'
+    location: location
+    kind: 'app,linux,container'
     name: replace(namingStructure, '{rtype}', 'app')
     serverFarmResourceId: appServicePlanModule.outputs.resourceId
 
     vnetRouteAllEnabled: true
     virtualNetworkSubnetId: networkModule.outputs.subnetResourceIds[1]
 
+    basicPublishingCredentialsPolicies: [
+      {
+        name: 'scm'
+        allow: true
+      }
+    ]
+
+    siteConfig: {
+      alwaysOn: true
+      linuxFxVersion: 'DOCKER|${cr.properties.loginServer}/${containerImage}'
+      // TODO: Create three: 'ui' 'ws' 'daemon'
+      appCommandLine: 'ui-ws'
+      acrUseManagedIdentityCreds: true
+    }
+
+    appSettingsKeyValuePairs: {
+      DOCKER_REGISTRY_SERVER_URL: 'https://${cr.properties.loginServer}'
+    }
+
+    appInsightResourceId: applicationInsightsModule.outputs.resourceId
+
     httpsOnly: true
+
+    managedIdentities: {
+      userAssignedResourceIds: [
+        uamiModule.outputs.resourceId
+      ]
+    }
 
     tags: tags
     diagnosticSettings: [diagnosticSetting]
+    enableTelemetry: enableTelemetry
+  }
+}
+
+module applicationInsightsModule 'br/public:avm/res/insights/component:0.3.0' = {
+  scope: appResourceGroup
+  name: take(replace(deploymentNameStructure, '{rtype}', 'appi'), 64)
+  params: {
+    name: replace(namingStructure, '{rtype}', 'appi')
+    workspaceResourceId: logAnalyticsWorkspaceId
+
+    diagnosticSettings: [diagnosticSetting]
+    tags: tags
     enableTelemetry: enableTelemetry
   }
 }

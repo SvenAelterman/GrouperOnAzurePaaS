@@ -16,9 +16,9 @@
     The Azure region to deploy the resources to.
 
 .EXAMPLE
-    ./deploy.ps1 -TemplateParameterFile '.\main.prj.bicepparam' -TargetSubscriptionId '00000000-0000-0000-0000-000000000000' -Location 'eastus' 
+    ./deploy.ps1 -TemplateParameterFile '.\main.prj.bicepparam' -TargetSubscriptionId '00000000-0000-0000-0000-000000000000' -Location 'eastus'
 
-    .EXAMPLE
+.EXAMPLE
     ./deploy.ps1 '.\main.prj.bicepparam' '00000000-0000-0000-0000-000000000000' 'eastus'
 #>
 
