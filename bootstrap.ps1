@@ -35,7 +35,9 @@ Param(
     [Parameter(Mandatory, Position = 3)]
     [string]$Location,
     [Parameter(Position = 4)]
-    [string]$Environment = 'AzureCloud'
+    [string]$Environment = 'AzureCloud',
+    [Parameter()]
+    [bool]$BuildGrouperContainer = $true
 )
 
 # Define common parameters for the New-AzDeployment cmdlet
@@ -72,9 +74,19 @@ $DeploymentResult = New-AzDeployment @CmdLetParameters
 
 # Evaluate the deployment results
 if ($DeploymentResult.ProvisioningState -eq 'Succeeded') {
-    Write-Host "🔥 Deployment succeeded."
+    Write-Host "🔥 Azure Deployment succeeded."
 
-    $DeploymentResult.Outputs | Format-Table
+    if ($BuildGrouperContainer) {
+        $ContainerRegistryName = $DeploymentResult.Outputs['containerRegistryName'].Value
+
+        Write-Host "🛳️  Building Grouper custom container and push to $ContainerRegistryName..."
+
+        # The following must be done with the AZ CLI, as the Azure PowerShell modules do not support ACR build
+        az account set --subscription (Get-AzContext).Subscription.Id
+        az acr build --image umb/grouper:latest --registry $ContainerRegistryName --file ./grouper/Dockerfile ./grouper/
+    }
+
+    $DeploymentResult.Outputs | Format-Table -Property Key, @{Name = 'Value'; Expression = { $_.Value.Value } }
 }
 else {
     $DeploymentResult
