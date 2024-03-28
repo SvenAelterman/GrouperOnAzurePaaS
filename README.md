@@ -7,11 +7,12 @@ Coming soon.
 
 ## Azure Services
 
-- Key Vault
 - App Service
+- Azure Database for PostgreSQL Flexible Server
 - Container Registry
+- Key Vault
+- Log Analytics Workspace
 - Application Insights
-- Azure Monitor
 - Managed Identity
 
 ## Deployment
