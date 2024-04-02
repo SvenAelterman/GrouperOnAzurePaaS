@@ -37,20 +37,22 @@ Param(
     [Parameter(Position = 4)]
     [string]$Environment = 'AzureCloud',
     [Parameter()]
-    [bool]$BuildGrouperContainer = $true
+    [bool]$BuildGrouperContainer = $true,
+    [Parameter()]
+    [bool]$GenerateDatabasePassword = $true
 )
-
-# Define common parameters for the New-AzDeployment cmdlet
-[hashtable]$CmdLetParameters = @{
-    TemplateFile          = './bootstrap.bicep'
-    TemplateParameterFile = $TemplateParameterFile
-    Location              = $Location
-}
 
 # Process the template parameter file and read relevant values for use here
 Write-Verbose "Using template parameter file '$TemplateParameterFile'"
 [string]$TemplateParameterJsonFile = [System.IO.Path]::ChangeExtension($TemplateParameterFile, 'json')
 bicep build-params $TemplateParameterFile --outfile $TemplateParameterJsonFile
+
+# Define common parameters for the New-AzDeployment cmdlet
+[hashtable]$CmdLetParameters = @{
+    TemplateFile          = './bootstrap.bicep'
+    TemplateParameterFile = $TemplateParameterJsonFile
+    Location              = $Location
+}
 
 # Read the values from the parameters file, to use when generating the $DeploymentName value
 $ParameterFileContents = (Get-Content $TemplateParameterJsonFile | ConvertFrom-Json)
@@ -69,8 +71,21 @@ Set-AzContextWrapper -SubscriptionId $TargetSubscriptionId -Environment $Environ
 # Remove the module from the session
 Remove-Module AzSubscriptionManagement -WhatIf:$false
 
+if ($GenerateDatabasePassword) {
+    Import-Module .\scripts\PowerShell\Modules\Generate-Password.psm1
+    
+    $NewDatabasePassword = New-RandomPassword -Length 32
+
+    $CmdLetParameters.Add('databaseLogin', 'dbadmin')
+    $CmdLetParameters.Add('databasePassword', $NewDatabasePassword)
+
+    Remove-Module Generate-Password -WhatIf:$false
+}
+
 # Execute the deployment
 $DeploymentResult = New-AzDeployment @CmdLetParameters
+
+Remove-Item $TemplateParameterJsonFile
 
 # Evaluate the deployment results
 if ($DeploymentResult.ProvisioningState -eq 'Succeeded') {

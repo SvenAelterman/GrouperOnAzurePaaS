@@ -10,3 +10,7 @@ param tags = {
   'customer-reference': 'umb'
 }
 param enableTelemetry = false
+
+/* DO NOT SPECIFY A VALUE HERE */
+param databasePassword = ''
+param databaseLogin = ''
