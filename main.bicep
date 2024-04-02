@@ -17,6 +17,11 @@ param workloadName string = 'grouper'
 param purpose string = 'test'
 param tags object = {}
 
+param databaseName string = 'grouper'
+param databaseAdministratorLogin string = 'dbadmin'
+@secure()
+param databaseAdministratorPassword string
+
 param deploymentTime string = utcNow()
 param enableTelemetry bool = true
 
@@ -134,7 +139,6 @@ module databaseDnsZoneModule 'br/public:avm/res/network/private-dns-zone:0.2.4' 
 }
 
 // Deploy a private access PostgreSQL Flexible Server
-// TODO: Define database username/password
 module databaseModule 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.1.3' = {
   scope: dataResourceGroup
   name: take(replace(deploymentNameStructure, '{rtype}', 'database'), 64)
@@ -146,12 +150,15 @@ module databaseModule 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.1.
       {
         charset: 'UTF8'
         collation: 'en_US.utf8'
-        name: 'grouper'
+        name: databaseName
       }
     ]
 
     privateDnsZoneArmResourceId: databaseDnsZoneModule.outputs.resourceId
     delegatedSubnetResourceId: networkModule.outputs.subnetResourceIds[0]
+
+    administratorLogin: databaseAdministratorLogin
+    administratorLoginPassword: databaseAdministratorPassword
 
     diagnosticSettings: [diagnosticSetting]
     tags: tags
@@ -203,52 +210,66 @@ module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
   }
 }
 
-module appServiceModule 'modules/avm-local/web/site/main.bicep' = {
-  scope: appResourceGroup
-  name: take(replace(deploymentNameStructure, '{rtype}', 'app-ui'), 64)
-  params: {
-    location: location
-    kind: 'app,linux,container'
-    name: replace(namingStructure, '{rtype}', 'app')
-    serverFarmResourceId: appServicePlanModule.outputs.resourceId
+var appServiceInstances = ['ui', 'ws', 'daemon']
 
-    vnetRouteAllEnabled: true
-    virtualNetworkSubnetId: networkModule.outputs.subnetResourceIds[1]
+module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
+  for appServiceInstance in appServiceInstances: {
+    scope: appResourceGroup
+    name: take(replace(deploymentNameStructure, '{rtype}', 'app-${appServiceInstance}'), 64)
+    params: {
+      location: location
+      kind: 'app,linux,container'
+      name: replace(namingStructure, '{rtype}', 'app-${appServiceInstance}')
+      serverFarmResourceId: appServicePlanModule.outputs.resourceId
 
-    basicPublishingCredentialsPolicies: [
-      {
-        name: 'scm'
-        allow: true
-      }
-    ]
+      vnetRouteAllEnabled: true
+      virtualNetworkSubnetId: networkModule.outputs.subnetResourceIds[1]
 
-    siteConfig: {
-      alwaysOn: true
-      linuxFxVersion: 'DOCKER|${cr.properties.loginServer}/${containerImage}'
-      // TODO: Create three: 'ui' 'ws' 'daemon'
-      appCommandLine: 'ui-ws'
-      acrUseManagedIdentityCreds: true
-    }
-
-    appSettingsKeyValuePairs: {
-      DOCKER_REGISTRY_SERVER_URL: 'https://${cr.properties.loginServer}'
-    }
-
-    appInsightResourceId: applicationInsightsModule.outputs.resourceId
-
-    httpsOnly: true
-
-    managedIdentities: {
-      userAssignedResourceIds: [
-        uamiModule.outputs.resourceId
+      basicPublishingCredentialsPolicies: [
+        {
+          name: 'scm'
+          allow: true
+        }
       ]
-    }
 
-    tags: tags
-    diagnosticSettings: [diagnosticSetting]
-    enableTelemetry: enableTelemetry
+      siteConfig: {
+        alwaysOn: true
+        linuxFxVersion: 'DOCKER|${cr.properties.loginServer}/${containerImage}'
+        // TODO: Create three: 'ui' 'ws' 'daemon'
+        appCommandLine: appServiceInstance
+        acrUseManagedIdentityCreds: true
+      }
+
+      appSettingsKeyValuePairs: {
+        DOCKER_REGISTRY_SERVER_URL: 'https://${cr.properties.loginServer}'
+
+        GROUPER_RUN_APACHE: true
+        GROUPER_RUN_SHIB_SP: true
+        GROUPER_DATABASE_URL: 'jdbc:postgresql://${databaseModule.outputs.name}.postgres.database.azure.com:5432/grouper'
+        GROUPER_AUTO_DDL_UPTOVERSION: '4.*.*'
+
+        // TODO: Create secret references
+        GROUPER_MORPHSTRING_ENCRYPT_KEY: 'abcd1234'
+        GROUPER_DATABASE_PASSWORD: ''
+        GROUPER_DATABASE_USERNAME: ''
+      }
+
+      appInsightResourceId: applicationInsightsModule.outputs.resourceId
+
+      httpsOnly: true
+
+      managedIdentities: {
+        userAssignedResourceIds: [
+          uamiModule.outputs.resourceId
+        ]
+      }
+
+      tags: tags
+      diagnosticSettings: [diagnosticSetting]
+      enableTelemetry: enableTelemetry
+    }
   }
-}
+]
 
 module applicationInsightsModule 'br/public:avm/res/insights/component:0.3.0' = {
   scope: appResourceGroup
@@ -262,11 +283,3 @@ module applicationInsightsModule 'br/public:avm/res/insights/component:0.3.0' = 
     enableTelemetry: enableTelemetry
   }
 }
-
-// module keyVaultModule 'br/public:avm/res/key-vault/vault:0.4.0' = {
-//   scope: coreResourceGroup
-//   name: take(replace(deploymentNameStructure, '{rtype}', 'kv'),64)
-//   params: {
-//     name: 
-//   }
-// }
