@@ -18,9 +18,16 @@ param purpose string = 'test'
 param tags object = {}
 
 param databaseName string = 'grouper'
-param databaseAdministratorLogin string = 'dbadmin'
+param databaseAdministratorLoginSecretName string = 'databaseLogin'
+param databaseAdministratorPasswordSecretName string = 'databasePassword'
+@secure()
+param databaseAdministratorLogin string
 @secure()
 param databaseAdministratorPassword string
+
+param grouperMorphstringEncryptKeySecretName string = 'grouperMorphstringEncryptKey'
+
+param keyVaultName string
 
 param deploymentTime string = utcNow()
 param enableTelemetry bool = true
@@ -75,6 +82,10 @@ var diagnosticSetting = {
     { categoryGroup: 'allLogs' }
   ]
   name: 'defaultSetting'
+}
+
+module rolesModule 'modules/roles.bicep' = {
+  name: take(replace(deploymentNameStructure, '{rtype}', 'roles'), 64)
 }
 
 module networkModule 'br/public:avm/res/network/virtual-network:0.1.5' = {
@@ -187,6 +198,16 @@ module uamiAcrPullRbacModule 'modules/roleAssignment-cr.bicep' = {
   }
 }
 
+module uamiKvRbacModule 'modules/roleAssignment-kv.bicep' = {
+  scope: coreResourceGroup
+  name: take(replace(deploymentNameStructure, '{rtype}', 'uami-rbac-kv'), 64)
+  params: {
+    kvName: keyVaultName
+    principalId: uamiModule.outputs.principalId
+    roleDefinitionId: rolesModule.outputs.roles.keyVaultSecretsUser
+  }
+}
+
 // Deploy an App Service Plan
 module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
   scope: appResourceGroup
@@ -210,6 +231,19 @@ module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
   }
 }
 
+module appSvcKeyVaultReferencesModule 'modules/appSvcKeyVaultRefs.bicep' = {
+  scope: appResourceGroup
+  name: take(replace(deploymentNameStructure, '{rtype}', 'kv-refs'), 64)
+  params: {
+    keyVaultName: keyVaultName
+    secretNames: [
+      databaseAdministratorLoginSecretName
+      databaseAdministratorPasswordSecretName
+      grouperMorphstringEncryptKeySecretName
+    ]
+  }
+}
+
 var appServiceInstances = ['ui', 'ws', 'daemon']
 
 module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
@@ -217,6 +251,8 @@ module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
     scope: appResourceGroup
     name: take(replace(deploymentNameStructure, '{rtype}', 'app-${appServiceInstance}'), 64)
     params: {
+      keyVaultAccessIdentityResourceId: uamiModule.outputs.resourceId
+
       location: location
       kind: 'app,linux,container'
       name: replace(namingStructure, '{rtype}', 'app-${appServiceInstance}')
@@ -248,10 +284,10 @@ module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
         GROUPER_DATABASE_URL: 'jdbc:postgresql://${databaseModule.outputs.name}.postgres.database.azure.com:5432/grouper'
         GROUPER_AUTO_DDL_UPTOVERSION: '4.*.*'
 
-        // TODO: Create secret references
-        GROUPER_MORPHSTRING_ENCRYPT_KEY: 'abcd1234'
-        GROUPER_DATABASE_PASSWORD: ''
-        GROUPER_DATABASE_USERNAME: ''
+        // Obtain secrets as Key Vault references
+        GROUPER_DATABASE_USERNAME: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[0]
+        GROUPER_DATABASE_PASSWORD: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[1]
+        GROUPER_MORPHSTRING_ENCRYPT_KEY: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[2]
       }
 
       appInsightResourceId: applicationInsightsModule.outputs.resourceId
