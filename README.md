@@ -33,3 +33,7 @@ Coming soon.
 - Do not use the PostgreSQL database administrator account for Grouper. Create a database user with the right permissions instead. After doing so, update the secrets in Key Vault and restart the App Services.
 - Deploy multiple instances for resiliency.
 - Review the compute for PostgreSQL and App Service Plan to make sure it meets your needs.
+- Enable continuous deployment of the container to the three App Services. Practice safe deployment using Deployment Slots.
+- Consider deploying Azure Front Door or Application Gateway to secure the app with a Web Application Firewall (WAF).
+- Enhance the Grouper container image with custom configuration. Protect the Azure Container Registry using private endpoints.
+- When peering to your hub network, ensure that the PostgreSQL Flexible Server is registered in the correct private DNS zone. If needed, set custom DNS server IP addresses in the virtual network configuration.
