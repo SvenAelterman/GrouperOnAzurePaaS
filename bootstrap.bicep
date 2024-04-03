@@ -11,10 +11,14 @@ param tags object = {}
 param deploymentTime string = utcNow()
 param enableTelemetry bool = true
 
+/* DATABASE SECRETS */
 @secure()
 param databaseLogin string = ''
 @secure()
 param databasePassword string = ''
+/* GROUPER SECRETS */
+@secure()
+param grouperMorphStringEncryptKey string = ''
 
 var deploymentNameStructure = '${workloadName}-{rtype}-${deploymentTime}'
 var sequenceFormatted = format('{0:00}', sequence)
@@ -77,6 +81,39 @@ module keyVaultNameModule 'modules/createValidAzResourceName.bicep' = {
 
 var databasePasswordSecretName = 'databasePassword'
 var databaseLoginSecretName = 'databaseLogin'
+var grouperMorphStringEncryptKeySecretName = 'grouperMorphStringEncryptKey'
+
+var databasePasswordSecret = !empty(databasePassword)
+  ? [
+      {
+        name: databasePasswordSecretName
+        value: databasePassword
+        contentType: 'The password for the PostgreSQL database admin user.'
+      }
+    ]
+  : []
+
+var databaseLoginSecret = !empty(databaseLogin)
+  ? [
+      {
+        name: databaseLoginSecretName
+        value: databaseLogin
+        contentType: 'The login (username) for the PostgreSQL database admin user.'
+      }
+    ]
+  : []
+
+var grouperMorphStringEncryptKeySecret = !empty(grouperMorphStringEncryptKey)
+  ? [
+      {
+        name: grouperMorphStringEncryptKeySecretName
+        value: grouperMorphStringEncryptKey
+        contentType: 'The key used to encrypt and decrypt the morph string in Grouper.'
+      }
+    ]
+  : []
+
+var secureList = concat(databasePasswordSecret, databaseLoginSecret, grouperMorphStringEncryptKeySecret)
 
 // Create a Key Vault to hold the database password
 module keyVaultModule 'br/public:avm/res/key-vault/vault:0.4.0' = {
@@ -86,18 +123,7 @@ module keyVaultModule 'br/public:avm/res/key-vault/vault:0.4.0' = {
     name: keyVaultNameModule.outputs.validName
 
     secrets: {
-      secureList: [
-        {
-          name: databasePasswordSecretName
-          value: databasePassword
-          contentType: 'The password for the PostgreSQL database admin user.'
-        }
-        {
-          name: databaseLoginSecretName
-          value: databaseLogin
-          contentType: 'The login (username) for the PostgreSQL database admin user.'
-        }
-      ]
+      secureList: secureList
     }
 
     enableRbacAuthorization: true

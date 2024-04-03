@@ -16,10 +16,10 @@
     The Azure region to deploy the resources to.
 
 .EXAMPLE
-    ./deploy.ps1 -TemplateParameterFile '.\main.prj.bicepparam' -TargetSubscriptionId '00000000-0000-0000-0000-000000000000' -Location 'eastus' 
+    ./deploy.ps1 -TemplateParameterFile './bootstrap.bicepparam' -TargetSubscriptionId '00000000-0000-0000-0000-000000000000' -Location 'eastus' 
 
-    .EXAMPLE
-    ./deploy.ps1 '.\main.prj.bicepparam' '00000000-0000-0000-0000-000000000000' 'eastus'
+.EXAMPLE
+    ./deploy.ps1 './bootstrap.bicepparam' '00000000-0000-0000-0000-000000000000' 'eastus' -BuildGrouperContainer $true -GenerateDatabasePassword $true -GenerateGrouperMorphStringEncryptKey $true
 #>
 
 # LATER: Be more specific about the required modules; it will speed up the initial call
@@ -37,9 +37,11 @@ Param(
     [Parameter(Position = 4)]
     [string]$Environment = 'AzureCloud',
     [Parameter()]
-    [bool]$BuildGrouperContainer = $true,
+    [bool]$BuildGrouperContainer = $false,
     [Parameter()]
-    [bool]$GenerateDatabasePassword = $true
+    [bool]$GenerateDatabasePassword = $false,
+    [Parameter()]
+    [bool]$GenerateGrouperMorphStringEncryptKey = $false
 )
 
 # Process the template parameter file and read relevant values for use here
@@ -71,13 +73,22 @@ Set-AzContextWrapper -SubscriptionId $TargetSubscriptionId -Environment $Environ
 # Remove the module from the session
 Remove-Module AzSubscriptionManagement -WhatIf:$false
 
-if ($GenerateDatabasePassword) {
+if ($GenerateDatabasePassword -or $GenerateGrouperMorphStringEncryptKey) {
     Import-Module .\scripts\PowerShell\Modules\Generate-Password.psm1
     
-    $NewDatabasePassword = New-RandomPassword -Length 32
+    if ($GenerateDatabasePassword) {
+        [securestring]$NewDatabasePassword = New-RandomPassword -Length 32
+        [securestring]$DatabaseLogin = ConvertTo-SecureString -String 'dbadmin' -AsPlainText -Force
 
-    $CmdLetParameters.Add('databaseLogin', 'dbadmin')
-    $CmdLetParameters.Add('databasePassword', $NewDatabasePassword)
+        $CmdLetParameters.Add('databaseLogin', $DatabaseLogin)
+        $CmdLetParameters.Add('databasePassword', $NewDatabasePassword)
+    }
+
+    if ($GenerateGrouperMorphStringEncryptKey) {
+        [securestring]$NewGrouperMorphStringEncryptKey = New-RandomPassword -Length 15
+
+        $CmdLetParameters.Add('grouperMorphStringEncryptKey', $NewGrouperMorphStringEncryptKey)
+    }
 
     Remove-Module Generate-Password -WhatIf:$false
 }

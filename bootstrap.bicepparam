@@ -1,7 +1,7 @@
 using './bootstrap.bicep'
 
 param namingConvention = '{workloadName}-{purpose}-{rtype}-{location}-{sequence}'
-param sequence = 1
+param sequence = 2
 param location = 'eastus'
 param workloadName = 'grouper'
 param purpose = 'test'
