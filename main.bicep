@@ -140,12 +140,18 @@ module networkModule 'br/public:avm/res/network/virtual-network:0.1.5' = {
   }
 }
 
-// TODO: Might need to reference existing private link DNS zone
+// Production: Might need to reference existing private link DNS zone
 module databaseDnsZoneModule 'br/public:avm/res/network/private-dns-zone:0.2.4' = {
   scope: networkResourceGroup
   name: take(replace(deploymentNameStructure, '{rtype}', 'db-dns'), 64)
   params: {
     name: 'privatelink.postgres.database.azure.com'
+    virtualNetworkLinks: [
+      {
+        registrationEnabled: false
+        virtualNetworkResourceId: networkModule.outputs.resourceId
+      }
+    ]
   }
 }
 
@@ -170,6 +176,9 @@ module databaseModule 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.1.
 
     administratorLogin: databaseAdministratorLogin
     administratorLoginPassword: databaseAdministratorPassword
+    // LATER: Consider using Entra ID and managed identity auth
+    passwordAuth: 'Enabled'
+    activeDirectoryAuth: 'Disabled'
 
     diagnosticSettings: [diagnosticSetting]
     tags: tags
@@ -258,8 +267,9 @@ module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
       name: replace(namingStructure, '{rtype}', 'app-${appServiceInstance}')
       serverFarmResourceId: appServicePlanModule.outputs.resourceId
 
-      vnetRouteAllEnabled: true
       virtualNetworkSubnetId: networkModule.outputs.subnetResourceIds[1]
+      vnetRouteAllEnabled: true
+      vnetImagePullEnabled: true
 
       basicPublishingCredentialsPolicies: [
         {
@@ -270,19 +280,41 @@ module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
 
       siteConfig: {
         alwaysOn: true
+        // For a custom Linux container, specify the image and tag here
         linuxFxVersion: 'DOCKER|${cr.properties.loginServer}/${containerImage}'
-        // TODO: Create three: 'ui' 'ws' 'daemon'
+        // Each Grouper service is started via the appCommandLine: ui, ws, or daemon
         appCommandLine: appServiceInstance
+        // Using the managed identity to pull images from the ACR
         acrUseManagedIdentityCreds: true
+        // Specify the user-assigned managed identity to use to pull images from the ACR
+        acrUserManagedIdentityId: uamiModule.outputs.clientId
+
+        http20Enabled: true
+        minTlsVersion: '1.2'
+
+        httpLoggingEnabled: true
+        logsDirectorySizeLimit: 35
+        detailedErrorLoggingEnabled: true
+        retentionInDays: 1
       }
 
+      // Define the environment variables for the Grouper services
       appSettingsKeyValuePairs: {
         DOCKER_REGISTRY_SERVER_URL: 'https://${cr.properties.loginServer}'
 
-        GROUPER_RUN_APACHE: true
-        GROUPER_RUN_SHIB_SP: true
-        GROUPER_DATABASE_URL: 'jdbc:postgresql://${databaseModule.outputs.name}.postgres.database.azure.com:5432/grouper'
+        GROUPER_RUN_APACHE: 'true'
+        GROUPER_RUN_SHIB_SP: 'false'
+        GROUPER_DATABASE_URL: 'jdbc:postgresql://${databaseModule.outputs.name}.postgres.database.azure.com:5432/${databaseName}?sslmode=require'
+        // Deploy the database schema up to version 4
         GROUPER_AUTO_DDL_UPTOVERSION: '4.*.*'
+
+        // TODO: Consider enabling E2E encryption, but this is still in preview (https://techcommunity.microsoft.com/t5/apps-on-azure-blog/end-to-end-e2e-tls-encryption-preview-on-linux-multi-tenant-app/ba-p/3976646)
+        GROUPER_USE_SSL: 'false'
+        GROUPER_TOMCAT_HTTP_PORT: '8080'
+        GROUPER_TOMCAT_HTTPS_PORT: '-1'
+        WEBSITES_PORT: '80'
+
+        GROUPER_UI_GROUPER_AUTH: 'true'
 
         // Obtain secrets as Key Vault references
         GROUPER_DATABASE_USERNAME: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[0]
