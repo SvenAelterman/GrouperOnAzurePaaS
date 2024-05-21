@@ -26,6 +26,7 @@ param databaseAdministratorLogin string
 param databaseAdministratorPassword string
 
 param grouperMorphstringEncryptKeySecretName string = 'grouperMorphstringEncryptKey'
+param grouperSystemPasswordSecretName string = 'grouperSystemPassword'
 
 param keyVaultName string
 
@@ -249,6 +250,7 @@ module appSvcKeyVaultReferencesModule 'modules/appSvcKeyVaultRefs.bicep' = {
       databaseAdministratorLoginSecretName
       databaseAdministratorPasswordSecretName
       grouperMorphstringEncryptKeySecretName
+      grouperSystemPasswordSecretName
     ]
   }
 }
@@ -320,6 +322,8 @@ module appServiceModule 'modules/avm-local/web/site/main.bicep' = [
         GROUPER_DATABASE_USERNAME: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[0]
         GROUPER_DATABASE_PASSWORD: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[1]
         GROUPER_MORPHSTRING_ENCRYPT_KEY: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[2]
+        // TODO: Make this optional
+        GROUPERSYSTEM_QUICKSTART_PASS: appSvcKeyVaultReferencesModule.outputs.keyVaultRefs[3]
       }
 
       appInsightResourceId: applicationInsightsModule.outputs.resourceId

@@ -19,6 +19,8 @@ param databasePassword string = ''
 /* GROUPER SECRETS */
 @secure()
 param grouperMorphStringEncryptKey string = ''
+@secure()
+param grouperSystemPassword string = ''
 
 var deploymentNameStructure = '${workloadName}-{rtype}-${deploymentTime}'
 var sequenceFormatted = format('{0:00}', sequence)
@@ -82,6 +84,7 @@ module keyVaultNameModule 'modules/createValidAzResourceName.bicep' = {
 var databasePasswordSecretName = 'databasePassword'
 var databaseLoginSecretName = 'databaseLogin'
 var grouperMorphStringEncryptKeySecretName = 'grouperMorphStringEncryptKey'
+var grouperSystemPasswordSecretName = 'grouperSystemPassword'
 
 var databasePasswordSecret = !empty(databasePassword)
   ? [
@@ -113,7 +116,23 @@ var grouperMorphStringEncryptKeySecret = !empty(grouperMorphStringEncryptKey)
     ]
   : []
 
-var secureList = concat(databasePasswordSecret, databaseLoginSecret, grouperMorphStringEncryptKeySecret)
+var grouperSystemPasswordSecret = !empty(grouperMorphStringEncryptKey)
+  ? [
+      {
+        name: grouperSystemPasswordSecretName
+        value: grouperSystemPassword
+        contentType: 'The default system password.'
+      }
+    ]
+  : []
+
+// Create an array of all the secrets to pass to the Key Vault module
+var secureList = concat(
+  databasePasswordSecret,
+  databaseLoginSecret,
+  grouperMorphStringEncryptKeySecret,
+  grouperSystemPasswordSecret
+)
 
 // Create a Key Vault to hold the database password
 module keyVaultModule 'br/public:avm/res/key-vault/vault:0.4.0' = {
@@ -148,3 +167,6 @@ output keyVaultResourceGroupName string = coreResourceGroup.name
 #disable-next-line outputs-should-not-contain-secrets
 output databasePasswordSecretName string = databasePasswordSecretName
 output databaseLoginSecretName string = databaseLoginSecretName
+output grouperMorphStringEncryptKeySecretName string = grouperMorphStringEncryptKeySecretName
+#disable-next-line outputs-should-not-contain-secrets
+output grouperSystemPasswordSecretName string = grouperSystemPasswordSecretName

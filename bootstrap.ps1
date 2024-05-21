@@ -41,7 +41,9 @@ Param(
     [Parameter()]
     [bool]$GenerateDatabasePassword = $false,
     [Parameter()]
-    [bool]$GenerateGrouperMorphStringEncryptKey = $false
+    [bool]$GenerateGrouperMorphStringEncryptKey = $false,
+    [Parameter()]
+    [bool]$GenerateGrouperSystemPassword = $false
 )
 
 # Process the template parameter file and read relevant values for use here
@@ -88,6 +90,12 @@ if ($GenerateDatabasePassword -or $GenerateGrouperMorphStringEncryptKey) {
         [securestring]$NewGrouperMorphStringEncryptKey = New-RandomPassword -Length 15
 
         $CmdLetParameters.Add('grouperMorphStringEncryptKey', $NewGrouperMorphStringEncryptKey)
+    }
+
+    if ($GenerateGrouperSystemPassword) {
+        [securestring]$NewGrouperSystemPassword = New-RandomPassword -Length 25
+
+        $CmdLetParameters.Add('grouperSystemPassword', $NewGrouperSystemPassword)
     }
 
     Remove-Module Generate-Password -WhatIf:$false
