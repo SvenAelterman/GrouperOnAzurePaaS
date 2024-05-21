@@ -9,7 +9,7 @@ ENV GROUPER_TOMCAT_HTTP_PORT=8080
 # Install and configure SSH
 RUN yum update -y \
     && yum install -y openssh-server \
-    # Required user and password for Azure App Service
+    # Required user and password for Azure App Service SSH connection
     && echo "root:Docker!" | chpasswd \
     && ssh-keygen -A
 
@@ -19,5 +19,3 @@ COPY sshd_config /etc/ssh/
 COPY supervisord-sshd.conf /opt/tier-support/supervisord-base.conf
 
 EXPOSE 80 2222
-
-#ENTRYPOINT [ "./entrypoint.sh" ]
