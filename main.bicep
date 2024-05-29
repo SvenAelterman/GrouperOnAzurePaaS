@@ -30,6 +30,8 @@ param grouperSystemPasswordSecretName string = 'grouperSystemPassword'
 
 param keyVaultName string
 
+param hubVirtualNetworkResourceId string = ''
+
 param deploymentTime string = utcNow()
 param enableTelemetry bool = true
 
@@ -89,7 +91,7 @@ module rolesModule 'modules/roles.bicep' = {
   name: take(replace(deploymentNameStructure, '{rtype}', 'roles'), 64)
 }
 
-module networkModule 'br/public:avm/res/network/virtual-network:0.1.5' = {
+module networkModule 'br/public:avm/res/network/virtual-network:0.1.6' = {
   scope: networkResourceGroup
   name: take(replace(deploymentNameStructure, '{rtype}', 'network'), 64)
   params: {
@@ -132,8 +134,22 @@ module networkModule 'br/public:avm/res/network/virtual-network:0.1.5' = {
       }
     ]
 
-    // TODO: Define peering with hub network
-    peerings: null
+    // Define peering with hub network, if specified
+    peerings: empty(hubVirtualNetworkResourceId)
+      ? null
+      : [
+          {
+            allowForwardedTraffic: true
+            allowGatewayTransit: true
+            allowVirtualNetworkAccess: true
+            remotePeeringAllowForwardedTraffic: true
+            remotePeeringAllowVirtualNetworkAccess: true
+            remotePeeringEnabled: true
+            remotePeeringName: 'Hub-To-Grouper-${purpose}'
+            remoteVirtualNetworkId: hubVirtualNetworkResourceId
+            useRemoteGateways: true
+          }
+        ]
 
     diagnosticSettings: [diagnosticSetting]
     tags: tags
@@ -226,17 +242,17 @@ module appServicePlanModule 'br/public:avm/res/web/serverfarm:0.1.1' = {
     name: replace(namingStructure, '{rtype}', 'asp')
     sku: {
       capacity: 1
-      family: 'S'
-      name: 'S1'
-      size: 'S1'
-      tier: 'Standard'
+      family: 'Pv3'
+      name: 'P0v3'
+      size: 'P0V3'
+      tier: 'Premium0V3'
     }
 
     kind: 'Linux'
     reserved: true
 
     tags: tags
-    //diagnosticSettings: [diagnosticSetting]
+    // No diagnostic logs available, only metrics
     enableTelemetry: enableTelemetry
   }
 }

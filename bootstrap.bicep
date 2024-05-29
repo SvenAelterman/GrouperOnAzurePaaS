@@ -116,7 +116,7 @@ var grouperMorphStringEncryptKeySecret = !empty(grouperMorphStringEncryptKey)
     ]
   : []
 
-var grouperSystemPasswordSecret = !empty(grouperMorphStringEncryptKey)
+var grouperSystemPasswordSecret = !empty(grouperSystemPassword)
   ? [
       {
         name: grouperSystemPasswordSecretName

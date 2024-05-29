@@ -75,7 +75,7 @@ Set-AzContextWrapper -SubscriptionId $TargetSubscriptionId -Environment $Environ
 # Remove the module from the session
 Remove-Module AzSubscriptionManagement -WhatIf:$false
 
-if ($GenerateDatabasePassword -or $GenerateGrouperMorphStringEncryptKey) {
+if ($GenerateDatabasePassword -or $GenerateGrouperMorphStringEncryptKey -or $GenerateGrouperSystemPassword) {
     Import-Module .\scripts\PowerShell\Modules\Generate-Password.psm1
     
     if ($GenerateDatabasePassword) {
@@ -87,12 +87,14 @@ if ($GenerateDatabasePassword -or $GenerateGrouperMorphStringEncryptKey) {
     }
 
     if ($GenerateGrouperMorphStringEncryptKey) {
+        Write-Verbose "Generating a new Grouper morph string encryption key..."
         [securestring]$NewGrouperMorphStringEncryptKey = New-RandomPassword -Length 15
 
         $CmdLetParameters.Add('grouperMorphStringEncryptKey', $NewGrouperMorphStringEncryptKey)
     }
 
     if ($GenerateGrouperSystemPassword) {
+        Write-Verbose "Generating a new Grouper system password..."
         [securestring]$NewGrouperSystemPassword = New-RandomPassword -Length 25
 
         $CmdLetParameters.Add('grouperSystemPassword', $NewGrouperSystemPassword)
