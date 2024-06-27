@@ -12,7 +12,9 @@ In order to deploy this project, please refer to the upcoming section on deploym
 
 ## Architecture
 
-Coming soon.
+![Grouper on Azure Platform services architecture diagram.](docs/architecture.png)
+
+*[Download Visio](docs/architecture.vsdx)*
 
 ## Azure Services
 
@@ -34,7 +36,7 @@ Coming soon.
 - Deploy multiple instances for resiliency.
 - Review the compute for PostgreSQL and App Service Plan to make sure it meets your needs.
 - Enable continuous deployment of the container to the three App Services. Practice safe deployment using Deployment Slots.
-- Consider deploying Azure Front Door or Application Gateway to secure the app with a Web Application Firewall (WAF).
-- Enhance the Grouper container image with custom configuration.
+- Consider deploying Azure Front Door or Application Gateway to secure the app with a Web Application Firewall (WAF). Application Gateway (or ingress via a Firewall) are included on the diagram but are not included in the Bicep code.
+- Enhance the Grouper container image with custom configuration, e.g., for Shibboleth support.
 - Protect the Azure Container Registry using private endpoints.
 - When peering to your hub network, ensure that the PostgreSQL Flexible Server is registered in the correct private DNS zone. If needed, set custom DNS server IP addresses in the virtual network configuration.
